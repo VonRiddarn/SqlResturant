@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Shared/">
+    <Project Path="Shared/Models/Models.csproj" />
+  </Folder>
+  <Project Path="DbBuilder/DbBuilder.csproj" />
+  <Project Path="Kitchen/Kitchen.csproj" />
+  <Project Path="OrderView/OrderView.csproj" />
+  <Project Path="Register/Register.csproj" />
+</Solution>
