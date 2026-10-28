@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/Shared/">
-    <Project Path="Shared/Models/Models.csproj" />
+    <Project Path="Shared/Core/Core.csproj" />
   </Folder>
   <Project Path="DbBuilder/DbBuilder.csproj" />
   <Project Path="Kitchen/Kitchen.csproj" />
