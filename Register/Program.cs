@@ -1,4 +1,6 @@
-﻿namespace Register;
+﻿using System;
+
+namespace Register;
 
 class Program
 {
