@@ -1,0 +1,331 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Strajp</name>
+    </assembly>
+    <members>
+        <member name="T:Strajp.Bank">
+            <summary>
+            The simulated bank and server. Shared between all service instances and reset when the program restarts.
+            </summary>
+        </member>
+        <member name="T:Strajp.Card">
+            <summary>
+            A test card in the simulated bank.
+            </summary>
+        </member>
+        <member name="F:Strajp.Card.Balance">
+            <summary>Balance in öre.</summary>
+        </member>
+        <member name="F:Strajp.Card.IsLost">
+            <summary>The card has been reported lost.</summary>
+        </member>
+        <member name="F:Strajp.Card.PurchaseLimit">
+            <summary>Maximum amount per purchase in öre, or <c>null</c> if there is no limit.</summary>
+        </member>
+        <member name="F:Strajp.Card.AlwaysProcessingError">
+            <summary>Every payment fails with a processing error.</summary>
+        </member>
+        <member name="F:Strajp.Card.IntermittentProcessingError">
+            <summary>Every other payment fails with a processing error, starting with the first.</summary>
+        </member>
+        <member name="F:Strajp.Card.Attempts">
+            <summary>Number of payment attempts so far, used for <see cref="F:Strajp.Card.IntermittentProcessingError"/>.</summary>
+        </member>
+        <member name="T:Strajp.PaymentIntent">
+            <summary>
+            A payment. Create one with <see cref="M:Strajp.PaymentIntentService.Create(Strajp.PaymentIntentCreateOptions)"/>.
+            </summary>
+            <remarks>
+            The object is a snapshot. If the payment changes later, call <see cref="M:Strajp.PaymentIntentService.Get(System.String)"/> to get the current state.
+            </remarks>
+        </member>
+        <member name="P:Strajp.PaymentIntent.Id">
+            <summary>
+            The unique id of the payment, e.g. <c>"pi_1a2b3c..."</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntent.Amount">
+            <summary>
+            The amount in öre, e.g. 1000 for 10 SEK.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntent.Currency">
+            <summary>
+            The currency. Always <c>"sek"</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntent.Status">
+            <summary>
+            The state of the payment:
+            <list type="bullet">
+            <item><description><c>"requires_payment_method"</c> – a card is needed, either because none was given or because the last one was declined.</description></item>
+            <item><description><c>"requires_confirmation"</c> – a card has been given; call <see cref="M:Strajp.PaymentIntentService.Confirm(System.String,Strajp.PaymentIntentConfirmOptions)"/> to pay.</description></item>
+            <item><description><c>"succeeded"</c> – the payment is complete.</description></item>
+            </list>
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntent.PaymentMethodId">
+            <summary>
+            The id of the payment method (card) used for the payment, or <c>null</c> if none has been given.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentIntentCreateOptions">
+            <summary>
+            Options for <see cref="M:Strajp.PaymentIntentService.Create(Strajp.PaymentIntentCreateOptions)"/>.
+            </summary>
+            <example>
+            <code>
+            var options = new PaymentIntentCreateOptions
+            {
+                Amount = 1000,
+                Currency = "sek",
+                PaymentMethod = paymentMethod.Id,
+                Confirm = true,
+            };
+            </code>
+            </example>
+        </member>
+        <member name="P:Strajp.PaymentIntentCreateOptions.Amount">
+            <summary>
+            Required. The amount in öre, e.g. 1000 for 10 SEK. Must be at least 1.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntentCreateOptions.Currency">
+            <summary>
+            Required. The currency. Must be <c>"sek"</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntentCreateOptions.PaymentMethod">
+            <summary>
+            The id of the payment method (card) to pay with, from <see cref="P:Strajp.PaymentMethod.Id"/>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntentCreateOptions.Confirm">
+            <summary>
+            Set to <c>true</c> to pay immediately. Requires <see cref="P:Strajp.PaymentIntentCreateOptions.PaymentMethod"/>.
+            Otherwise the payment is only created, and you pay later with <see cref="M:Strajp.PaymentIntentService.Confirm(System.String,Strajp.PaymentIntentConfirmOptions)"/>.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentIntentConfirmOptions">
+            <summary>
+            Options for <see cref="M:Strajp.PaymentIntentService.Confirm(System.String,Strajp.PaymentIntentConfirmOptions)"/>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentIntentConfirmOptions.PaymentMethod">
+            <summary>
+            The id of the payment method (card) to pay with. Replaces any card already set on the payment.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentIntentService">
+            <summary>
+            Creates and confirms payments.
+            </summary>
+            <remarks>
+            Test cards:
+            <list type="table">
+            <item><term>1234</term><description>1,000 SEK. Works.</description></item>
+            <item><term>9999</term><description>1,000,000 SEK. Works.</description></item>
+            <item><term>0000</term><description>0 SEK. Declined with <c>"insufficient_funds"</c>.</description></item>
+            <item><term>1111</term><description>Reported lost. Declined with <c>"lost_card"</c>.</description></item>
+            <item><term>2222</term><description>Expired. Fails with code <c>"expired_card"</c>.</description></item>
+            <item><term>3333</term><description>10,000 SEK, max 500 SEK per purchase. Declined with <c>"card_velocity_exceeded"</c> above the limit.</description></item>
+            <item><term>4444</term><description>Always fails with code <c>"processing_error"</c>.</description></item>
+            <item><term>5555</term><description>1,000 SEK. Every other attempt fails with code <c>"processing_error"</c>, starting with the first.</description></item>
+            </list>
+            All other card numbers fail in <see cref="M:Strajp.PaymentMethodService.Create(Strajp.PaymentMethodCreateOptions)"/> with code <c>"incorrect_number"</c>.
+            Balances decrease when a payment succeeds and are reset when the program restarts.
+            </remarks>
+        </member>
+        <member name="M:Strajp.PaymentIntentService.Create(Strajp.PaymentIntentCreateOptions)">
+            <summary>
+            Creates a payment. If <see cref="P:Strajp.PaymentIntentCreateOptions.Confirm"/> is <c>true</c>, the payment is also completed.
+            </summary>
+            <param name="options">The amount, currency and card to pay with.</param>
+            <returns>The new payment. If it was confirmed, its <see cref="P:Strajp.PaymentIntent.Status"/> is <c>"succeeded"</c>.</returns>
+            <exception cref="T:Strajp.StrajpException">
+            If a parameter is missing or invalid (<c>"invalid_request_error"</c>),
+            or if the card was declined (<c>"card_error"</c>).
+            </exception>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="options"/> is <c>null</c>.</exception>
+        </member>
+        <member name="M:Strajp.PaymentIntentService.Confirm(System.String,Strajp.PaymentIntentConfirmOptions)">
+            <summary>
+            Completes a payment that has been created but not yet paid,
+            for example to retry with another card after a decline.
+            </summary>
+            <param name="id">The id of the payment, e.g. <c>"pi_1a2b3c..."</c>.</param>
+            <param name="options">Optional. Use it to set a new card.</param>
+            <returns>The payment, with <see cref="P:Strajp.PaymentIntent.Status"/> <c>"succeeded"</c>.</returns>
+            <exception cref="T:Strajp.StrajpException">
+            If the payment does not exist, has no card, has already succeeded (<c>"invalid_request_error"</c>),
+            or if the card was declined (<c>"card_error"</c>).
+            </exception>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="id"/> is <c>null</c>.</exception>
+        </member>
+        <member name="M:Strajp.PaymentIntentService.Get(System.String)">
+            <summary>
+            Gets the current state of a payment.
+            </summary>
+            <param name="id">The id of the payment, e.g. <c>"pi_1a2b3c..."</c>.</param>
+            <exception cref="T:Strajp.StrajpException">If no payment has that id (code <c>"resource_missing"</c>).</exception>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="id"/> is <c>null</c>.</exception>
+        </member>
+        <member name="T:Strajp.PaymentMethod">
+            <summary>
+            A card that can be used to pay. Create one with <see cref="M:Strajp.PaymentMethodService.Create(Strajp.PaymentMethodCreateOptions)"/>
+            and pass its <see cref="P:Strajp.PaymentMethod.Id"/> to <see cref="P:Strajp.PaymentIntentCreateOptions.PaymentMethod"/>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethod.Id">
+            <summary>
+            The unique id of the payment method, e.g. <c>"pm_1a2b3c..."</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethod.Type">
+            <summary>
+            The type of payment method. Always <c>"card"</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethod.Card">
+            <summary>
+            Information about the card.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentMethodCard">
+            <summary>
+            Information about the card in a <see cref="T:Strajp.PaymentMethod"/>. The full card number is never shown.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethodCard.Last4">
+            <summary>
+            The last four digits of the card number.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentMethodCreateOptions">
+            <summary>
+            Options for <see cref="M:Strajp.PaymentMethodService.Create(Strajp.PaymentMethodCreateOptions)"/>.
+            </summary>
+            <example>
+            <code>
+            var options = new PaymentMethodCreateOptions
+            {
+                Type = "card",
+                Card = new PaymentMethodCardOptions { Number = "1234" },
+            };
+            </code>
+            </example>
+        </member>
+        <member name="P:Strajp.PaymentMethodCreateOptions.Type">
+            <summary>
+            Required. The type of payment method. Must be <c>"card"</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethodCreateOptions.Card">
+            <summary>
+            Required. The card details.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentMethodCardOptions">
+            <summary>
+            Card details for <see cref="P:Strajp.PaymentMethodCreateOptions.Card"/>.
+            </summary>
+        </member>
+        <member name="P:Strajp.PaymentMethodCardOptions.Number">
+            <summary>
+            Required. The card number, e.g. <c>"1234"</c>. Spaces are ignored.
+            </summary>
+        </member>
+        <member name="T:Strajp.PaymentMethodService">
+            <summary>
+            Creates payment methods. A payment method turns a card number into an id that is safe to pass around,
+            so the rest of your program never needs to handle the card number.
+            </summary>
+        </member>
+        <member name="M:Strajp.PaymentMethodService.Create(Strajp.PaymentMethodCreateOptions)">
+            <summary>
+            Creates a payment method from a card number.
+            </summary>
+            <param name="options">The card details.</param>
+            <returns>The new payment method. Pass its <see cref="P:Strajp.PaymentMethod.Id"/> to <see cref="P:Strajp.PaymentIntentCreateOptions.PaymentMethod"/>.</returns>
+            <exception cref="T:Strajp.StrajpException">
+            If a parameter is missing or invalid (<c>"invalid_request_error"</c>),
+            or if the card number is invalid or does not exist (<c>"card_error"</c> with code <c>"invalid_number"</c> or <c>"incorrect_number"</c>).
+            </exception>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="options"/> is <c>null</c>.</exception>
+        </member>
+        <member name="M:Strajp.PaymentMethodService.Get(System.String)">
+            <summary>
+            Gets an existing payment method.
+            </summary>
+            <param name="id">The id of the payment method, e.g. <c>"pm_1a2b3c..."</c>.</param>
+            <exception cref="T:Strajp.StrajpException">If no payment method has that id (code <c>"resource_missing"</c>).</exception>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="id"/> is <c>null</c>.</exception>
+        </member>
+        <member name="T:Strajp.StrajpError">
+            <summary>
+            Details about why a request failed. Found in <see cref="P:Strajp.StrajpException.StrajpError"/>.
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.Type">
+            <summary>
+            The kind of error:
+            <list type="bullet">
+            <item><description><c>"card_error"</c> – the card could not be used, e.g. it was declined. Show <see cref="P:Strajp.StrajpError.Message"/> to the customer.</description></item>
+            <item><description><c>"invalid_request_error"</c> – the request was wrong, e.g. a missing parameter. This is a bug in your code.</description></item>
+            </list>
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.Code">
+            <summary>
+            A short code for the error, e.g. <c>"card_declined"</c>, <c>"expired_card"</c> or <c>"parameter_missing"</c>.
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.DeclineCode">
+            <summary>
+            Why the card was declined, e.g. <c>"insufficient_funds"</c> or <c>"lost_card"</c>.
+            <c>null</c> if the error is not a decline.
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.Param">
+            <summary>
+            The name of the parameter that caused the error, e.g. <c>"amount"</c>. <c>null</c> if no particular parameter caused it.
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.Message">
+            <summary>
+            A message describing the error.
+            </summary>
+        </member>
+        <member name="P:Strajp.StrajpError.PaymentIntent">
+            <summary>
+            The payment intent the error happened on, or <c>null</c>.
+            After a declined payment its <see cref="P:Strajp.PaymentIntent.Status"/> is <c>"requires_payment_method"</c>,
+            so you can retry it with another card using <see cref="M:Strajp.PaymentIntentService.Confirm(System.String,Strajp.PaymentIntentConfirmOptions)"/>.
+            </summary>
+        </member>
+        <member name="T:Strajp.StrajpException">
+            <summary>
+            Thrown when a request to Strajp fails, for example when a card is declined.
+            </summary>
+            <example>
+            <code>
+            try
+            {
+                PaymentIntent intent = service.Create(options);
+            }
+            catch (StrajpException e)
+            {
+                Console.WriteLine(e.Message);
+                Console.WriteLine(e.StrajpError.DeclineCode);
+            }
+            </code>
+            </example>
+        </member>
+        <member name="P:Strajp.StrajpException.StrajpError">
+            <summary>
+            Details about the error, such as <see cref="P:Strajp.StrajpError.Code"/> and <see cref="P:Strajp.StrajpError.DeclineCode"/>.
+            </summary>
+        </member>
+    </members>
+</doc>
