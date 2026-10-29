@@ -1,4 +1,7 @@
-﻿namespace Core;
+﻿using System;
+using System.IO;
+
+namespace Core;
 
 public static class DataAccess
 {
